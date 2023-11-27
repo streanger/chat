@@ -82,10 +82,9 @@ def show_block(block):
     if block.type == "text":
         print(f'[yellow]{block.content}[/yellow]')
         return
-    if block.type == "python":
-        language = "python"
-    elif block.type == "javascript":
-        language = "javascript"
+    known_languages = {"python", "javascript", "html"}
+    if block.type in known_languages:
+        language = block.type
     else:
         language = None
     highlight_code(block.content, language, codebox=True)
