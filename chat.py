@@ -110,8 +110,7 @@ if __name__ == "__main__":
     os.system('color')
     
     # load config
-    env_path = Path(sys.argv[0]).absolute() / ".env"
-    config = dotenv_values(env_path)
+    config = dotenv_values()
     openai.api_key = config["OPENAI-API-KEY"]
 
     # talk to gpt
