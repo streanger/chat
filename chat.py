@@ -3,8 +3,8 @@ import sys
 from collections import namedtuple
 from pathlib import Path
 
-import openai
 from dotenv import dotenv_values
+from openai import OpenAI
 from rich import print
 from rich.columns import Columns
 from rich.panel import Panel
@@ -22,13 +22,15 @@ def script_path():
 
 
 def ask_chat(messages):
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
             model=model,
             n=1,
             temperature=0.5,
             messages=messages,
         )
-    message = response['choices'][0]['message'].to_dict()
+    message = response.choices[0].message.model_dump()
+    del message['function_call']
+    del message['tool_calls']
     return message
 
 
@@ -101,6 +103,7 @@ def usage():
     print("    exit, quit       -clear terminal")
     print("    context          -switch context flag")
     print("    model            -show current model")
+    print("    models           -list all models")
     print("    talk             -show talk messages")
     print("    help             -this usage")
 
@@ -111,7 +114,7 @@ if __name__ == "__main__":
     
     # load config
     config = dotenv_values()
-    openai.api_key = config["OPENAI-API-KEY"]
+    client = OpenAI(api_key=config["OPENAI-API-KEY"])
 
     # talk to gpt
     model = "gpt-3.5-turbo"
@@ -148,6 +151,10 @@ if __name__ == "__main__":
             continue
         elif question == 'model':
             print(f'[*] debug: [magenta]{model}[magenta]')
+            continue
+        elif question == 'models':
+            models = client.models.list()
+            print(models)
             continue
 
         # prepare messages
