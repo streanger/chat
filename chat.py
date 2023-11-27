@@ -113,6 +113,7 @@ if __name__ == "__main__":
     os.system('color')
     
     # load config
+    # create .env file with OPENAI-API-KEY field
     config = dotenv_values()
     client = OpenAI(api_key=config["OPENAI-API-KEY"])
 
