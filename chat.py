@@ -1,5 +1,6 @@
+import json
 import os
-import sys
+import time
 from collections import namedtuple
 from pathlib import Path
 
@@ -19,6 +20,18 @@ def script_path():
     current_path = str(Path(__file__).parent)
     os.chdir(current_path)
     return current_path
+
+
+def write_json(filename, data):
+    """write to json file"""
+    with open(filename, 'w', encoding='utf-8') as fp:
+        json.dump(data, fp, sort_keys=True, indent=4, ensure_ascii=False)
+    return True
+
+
+def now():
+    """datetime now"""
+    return time.strftime("%Y%m%d%H%M%S")
 
 
 def ask_chat(messages):
@@ -96,6 +109,18 @@ def highlight_code(content, language, codebox=False):
     print(highlighted)
 
 
+def save_conversation(messages):
+    if len(messages) < 2:
+        # we skip system message
+        return
+    directory = Path('conversations')
+    directory.mkdir(exist_ok=True)
+    filename = f"{now()}.json"
+    path = directory / filename
+    write_json(path, messages)
+    print(f"[*] conversation saved to: [cyan]{path}[/cyan]")
+
+
 def usage():
     print("Usage")
     print("    cls, clear       -clear terminal")
@@ -110,7 +135,7 @@ def usage():
 if __name__ == "__main__":
     script_path()
     os.system('color')
-    
+
     # load config
     # create .env file with OPENAI-API-KEY field
     config = dotenv_values()
@@ -118,6 +143,7 @@ if __name__ == "__main__":
 
     # talk to gpt
     model = "gpt-3.5-turbo"
+    # model = "gpt-4"
     context = True  # keep conversation context
     system_message = {"role": "system", "content": "rule: reply directly without long summaries and comments, in few words"}
     messages = [system_message]
@@ -140,7 +166,7 @@ if __name__ == "__main__":
             context = not context
             print(f"[*] keep context set to: {context}")
             if not context:
-                # TODO: think of storing last conversation in json
+                save_conversation(messages)
                 messages = [system_message]
             continue
         elif question == "talk":
@@ -176,3 +202,6 @@ if __name__ == "__main__":
             print(f'[*] gpt:')
             for block in blocks:
                 show_block(block)
+
+    # save last conversation
+    save_conversation(messages)
