@@ -31,7 +31,7 @@ system_message = {"role": "system", "content": "rule: reply directly without lon
 messages = [system_message]
 matching = {
     'me': 'user',
-    'gpt': 'assistant',    
+    'gpt': 'assistant',
 }
 path = Path(filename)
 lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]

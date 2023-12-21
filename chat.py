@@ -223,8 +223,7 @@ if __name__ == "__main__":
             continue
 
         elif question == 'load':
-            save_conversation(messages)
-            # TODO: save current conversation before loading old one
+            save_conversation(messages)  # save current conversation
             conversations_directory = Path('conversations')
             conversations_list = [conversations_directory.joinpath(item) for item in os.listdir(conversations_directory) if item.endswith('.json')]
             conversations_match = {str(index):item for index, item in enumerate(conversations_list, start=1)}

@@ -3,4 +3,11 @@ local gpt chat
 
 # screenshots
 
-![image](images/interesting-snippets.png)
+### code generation
+![image](images/code.png)
+
+### openai models
+![image](images/models.png)
+
+### context handling
+![image](images/context.png)
