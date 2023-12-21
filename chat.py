@@ -107,7 +107,37 @@ def show_block(block):
     if block.type == "text":
         print(f'[yellow]{block.content}[/yellow]')
         return
-    known_languages = {"python", "javascript", "html"}
+    known_languages = {
+        "bash",
+        "cpp",
+        "css",
+        "dart",
+        "go",
+        "groovy",
+        "haskell",
+        "html",
+        "java",
+        "javascript",
+        "json",
+        "julia",
+        "kotlin",
+        "lua",
+        "markdown",
+        "matlab",
+        "perl",
+        "php",
+        "powershell",
+        "python",
+        "r",
+        "ruby",
+        "rust",
+        "scala",
+        "sql",
+        "swift",
+        "typescript",
+        "xml",
+        "yaml"
+    }
     if block.type in known_languages:
         language = block.type
     else:
