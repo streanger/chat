@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.syntax import Syntax
 
+
 Block = namedtuple("Block", ["content", "type"])
 
 
@@ -157,7 +158,7 @@ def save_conversation(messages):
         return
     directory = Path('conversations')
     directory.mkdir(exist_ok=True)
-    filename = f"{now()}.json"
+    filename = f'{conversation_id}.json'
     path = directory / filename
     write_json(path, messages)
     print(f"[*] conversation saved to: [cyan]{path}[/cyan]")
@@ -179,6 +180,7 @@ def usage():
     print("    context          -switch context flag")
     print("    model            -show current model")
     print("    models           -list all models")
+    print("    id               -conversation ID")
     print("    load             -load conversation")
     print("    talk             -show talk messages")
     print("    help             -this usage")
@@ -208,6 +210,7 @@ if __name__ == "__main__":
     context = True  # keep conversation context
     system_message = {"role": "system", "content": "rule: reply directly without long summaries and comments, in few words"}
     messages = [system_message]
+    conversation_id = now()
     while True:
         try:
             question = Prompt.ask("[cyan][*] you[/cyan]")
@@ -233,10 +236,15 @@ if __name__ == "__main__":
             if not context:
                 save_conversation(messages)
                 messages = [system_message]
+                conversation_id = now()
             continue
 
         elif question == "talk":
             print(messages)
+            continue
+
+        elif question == "id":
+            print(f'[*] conversation ID: [cyan]{conversation_id}[/cyan]')
             continue
 
         elif question == "help":
@@ -260,7 +268,11 @@ if __name__ == "__main__":
             conversations_str = '\n'.join([f'    {key}) [cyan]{path}[/cyan]' for (key, path) in conversations_match.items()])
             choose_list = f'[*] choose from list:\n{conversations_str}'
             print(choose_list)
-            load_input = input()
+            try:
+                load_input = input()
+            except KeyboardInterrupt:
+                print()
+                continue
             path_to_load = conversations_match.get(load_input, False)
             if not path_to_load:
                 print(f'[red]\[x] wrong choice')
@@ -270,6 +282,7 @@ if __name__ == "__main__":
                 print(f'[red]\[x] failed to load conversation from: {load_input}')
             else:
                 messages = loaded_messages
+                conversation_id = path_to_load.stem
                 print(f'[green][*] conversation loaded')
             continue
 
