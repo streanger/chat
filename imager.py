@@ -51,7 +51,8 @@ if __name__ == "__main__":
     parser.add_argument("prompt", help="Text prompt to generate image")
     parser.add_argument("-o", "--output", required=False, help="Prefix for generated image(s) name")
     parser.add_argument("-n", "--number", required=False, default=1, type=int, help="Number of images to generate")
-    parser.add_argument("-s", "--skip", required=False, action='store_true', help="If error occur skip and go next")
+    parser.add_argument("--skip", required=False, action='store_true', help="If error occur skip and go next")
+    parser.add_argument("--style", default="vivid", choices=["vivid", "natural"])
     args = parser.parse_args()
     PROMPT = args.prompt
     NUMBER = args.number
@@ -64,6 +65,13 @@ if __name__ == "__main__":
     else:
         name_prefix = sanitize_name(PROMPT)
     SKIP = args.skip
+    if args.style:
+        STYLE = args.style
+    else:
+        # https://taurit.pl/dalle-3-style-vivid-vs-natural/
+        # vivid causes the model to lean towards generating hyper-real and dramatic images
+        # natural causes the model to produce more natural, less hyper-real looking images
+        STYLE = 'vivid'
 
     # **** query setup ****
     # https://openai.com/api/pricing/
@@ -87,6 +95,7 @@ if __name__ == "__main__":
                 model=model,
                 prompt=PROMPT,
                 size=size,
+                style=STYLE,
                 quality=quality,
                 n=1,  # You must provide n=1 for this model
             )
