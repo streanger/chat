@@ -1,3 +1,5 @@
 python-dotenv
 openai
 rich
+requests
+Unidecode
