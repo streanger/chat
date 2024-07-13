@@ -56,7 +56,6 @@ if __name__ == "__main__":
     PROMPT = args.prompt
     NUMBER = args.number
     if NUMBER > 10:
-        # response = input('[>] do you really want to generate more than 10 images? (yes/No) ')
         response = Prompt.ask('[yellow bold][>] do you really want to generate more than 10 images? (yes/No)[/yellow bold]')
         if not response.lower() in ('yes', 'y'):
             sys.exit()
