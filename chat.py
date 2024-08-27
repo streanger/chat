@@ -4,6 +4,12 @@ import time
 from collections import namedtuple
 from pathlib import Path
 
+try:
+    import ollama
+except ModuleNotFoundError as err:
+    # print(err)
+    # print('you have to install ollama (`pip install ollama`), as well as model that you specify')
+    pass
 from dotenv import dotenv_values
 from openai import OpenAI
 from rich import print
@@ -12,15 +18,194 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.syntax import Syntax
 
-
 Block = namedtuple("Block", ["content", "type"])
 
 
-def script_path():
-    """set current path, to script path"""
-    current_path = str(Path(__file__).parent)
-    os.chdir(current_path)
-    return current_path
+class OllamaClient:
+    def __init__(self, model, system_message=None, context=True):
+        self.model = model
+        self.system_message = system_message
+        self.messages = [self.system_message]
+        self.context = context
+        self.conversation_id = self.__now()
+
+    def ask(self, content):
+        message = {"role": "user", "content": content}
+        self.messages.append(message)
+        response = ollama.chat(model=self.model, messages=self.messages)
+        reply = response['message']
+        if self.context:
+            # keep conversation
+            self.messages.append(reply)
+        answer = reply['content']
+        return answer
+
+    def get_models(self):
+        """show information about locally available models"""
+        print(ollama.list())
+
+    def get_model(self):
+        """show information about currently used model"""
+        print(f'[*] current model: {self.model}')
+
+    def switch_context(self):
+        self.context = not self.context
+        if not self.context:
+            self.save_conversation()
+            self.messages = [self.system_message]
+        print(f'[*] context set to: {self.context}')
+
+    def __now(self):
+        """datetime now"""
+        return time.strftime("%Y%m%d%H%M%S")
+
+    def save_conversation(self):
+        if len(self.messages) < 2:
+            # we skip system message
+            return
+        directory = Path('conversations')
+        directory.mkdir(exist_ok=True)
+        filename = f'{self.conversation_id}-{self.model}.json'
+        path = directory / filename
+        write_json(path, self.messages)
+        print(f"[*] conversation saved to: [cyan]{path}[/cyan]")
+        self.conversation_id = self.__now()
+
+    def load_conversation(self):
+        self.save_conversation()  # save current conversation
+        conversations_directory = Path('conversations')
+        conversations_list = [item for item in conversations_directory.iterdir() if item.suffix == '.json']
+        conversations_match = {str(index):item for index, item in enumerate(conversations_list, start=1)}
+        conversations_str = '\n'.join([f'    {key}) [cyan]{path}[/cyan]' for (key, path) in conversations_match.items()])
+        choose_list = f'[*] choose from list:\n{conversations_str}'
+        print(choose_list)
+        try:
+            load_input = input()
+        except KeyboardInterrupt:
+            print()
+            return False
+        path_to_load = conversations_match.get(load_input, False)
+        if not path_to_load:
+            print(f'[red]\[x] wrong choice')
+            return False
+        loaded_messages = read_json(path_to_load)
+        if not loaded_messages:
+            print(f'[red]\[x] failed to load conversation from: {load_input}')
+        else:
+            self.messages = loaded_messages
+            self.conversation_id = path_to_load.stem.split('-', maxsplit=1)[0]
+            print(f'[green][*] conversation loaded')
+
+    def usage(self):
+        print("Usage")
+        print("    cls, clear       -clear terminal")
+        print("    exit, quit       -clear terminal")
+        print("    context          -switch context flag")
+        print("    model            -show current model")
+        print("    models           -list all models")
+        print("    id               -conversation ID")
+        print("    load             -load conversation")
+        print("    talk             -show talk messages")
+        print("    help             -this usage")
+
+
+class GPTClient:
+    def __init__(self, model, system_message=None, context=True):
+        self.model = model  # gpt-4, gpt-3.5-turbo
+        config = dotenv_values()
+        self.client = OpenAI(api_key=config["OPENAI-API-KEY"])
+        self.system_message = system_message
+        self.messages = [self.system_message]
+        self.context = context
+        self.conversation_id = self.__now()
+
+    def ask(self, content):
+        message = {"role": "user", "content": content}
+        self.messages.append(message)
+        response = self.client.chat.completions.create(
+                model=self.model,
+                n=1,
+                temperature=0.5,
+                messages=self.messages,
+        )
+        reply = response.choices[0].message.model_dump()
+        del reply['function_call']
+        del reply['tool_calls']
+        del reply['refusal']
+        if self.context:
+            # keep conversation
+            self.messages.append(reply)
+        answer = reply['content']
+        return answer
+
+    def get_models(self):
+        """show information about locally available models"""
+        models = self.client.models.list()
+        print(models)
+
+    def get_model(self):
+        """show information about currently used model"""
+        print(f'[*] current model: {self.model}')
+
+    def switch_context(self):
+        self.context = not self.context
+        if not self.context:
+            self.save_conversation()
+            self.messages = [self.system_message]
+        print(f'[*] context set to: {self.context}')
+
+    def __now(self):
+        """datetime now"""
+        return time.strftime("%Y%m%d%H%M%S")
+
+    def save_conversation(self):
+        if len(self.messages) < 2:
+            # we skip system message
+            return
+        directory = Path('conversations')
+        directory.mkdir(exist_ok=True)
+        filename = f'{self.conversation_id}-{self.model}.json'
+        path = directory / filename
+        write_json(path, self.messages)
+        print(f"[*] conversation saved to: [cyan]{path}[/cyan]")
+        self.conversation_id = self.__now()
+
+    def load_conversation(self):
+        self.save_conversation()  # save current conversation
+        conversations_directory = Path('conversations')
+        conversations_list = [item for item in conversations_directory.iterdir() if item.suffix == '.json']
+        conversations_match = {str(index):item for index, item in enumerate(conversations_list, start=1)}
+        conversations_str = '\n'.join([f'    {key}) [cyan]{path}[/cyan]' for (key, path) in conversations_match.items()])
+        choose_list = f'[*] choose from list:\n{conversations_str}'
+        print(choose_list)
+        try:
+            load_input = input()
+        except KeyboardInterrupt:
+            print()
+            return False
+        path_to_load = conversations_match.get(load_input, False)
+        if not path_to_load:
+            print(f'[red]\[x] wrong choice')
+            return False
+        loaded_messages = read_json(path_to_load)
+        if not loaded_messages:
+            print(f'[red]\[x] failed to load conversation from: {load_input}')
+        else:
+            self.messages = loaded_messages
+            self.conversation_id = path_to_load.stem.split('-', maxsplit=1)[0]
+            print(f'[green][*] conversation loaded')
+
+    def usage(self):
+        print("Usage")
+        print("    cls, clear       -clear terminal")
+        print("    exit, quit       -clear terminal")
+        print("    context          -switch context flag")
+        print("    model            -show current model")
+        print("    models           -list all models")
+        print("    id               -conversation ID")
+        print("    load             -load conversation")
+        print("    talk             -show talk messages")
+        print("    help             -this usage")
 
 
 def write_json(filename, data):
@@ -39,25 +224,6 @@ def read_json(filename):
     except FileNotFoundError:
         print('[x] FileNotFoundError: {}'.format(filename))
     return data
-
-
-def now():
-    """datetime now"""
-    return time.strftime("%Y%m%d%H%M%S")
-
-
-def ask_chat(messages):
-    """regular chat completion"""
-    response = client.chat.completions.create(
-            model=model,
-            n=1,
-            temperature=0.5,
-            messages=messages,
-        )
-    message = response.choices[0].message.model_dump()
-    del message['function_call']
-    del message['tool_calls']
-    return message
 
 
 def split_codeblocks(text):
@@ -147,43 +313,27 @@ def show_block(block):
 
 
 def highlight_code(content, language, codebox=False):
-    highlighted = Syntax(content, language, theme='monokai', line_numbers=False, indent_guides=False, word_wrap=True)
+    highlighted = Syntax(
+        content,
+        language,
+        theme='monokai',
+        line_numbers=False,
+        indent_guides=False,
+        word_wrap=True
+    )
     highlighted = Columns([Panel(highlighted)])
     print(highlighted)
 
 
-def save_conversation(messages):
-    if len(messages) < 2:
-        # we skip system message
-        return
-    directory = Path('conversations')
-    directory.mkdir(exist_ok=True)
-    filename = f'{conversation_id}.json'
-    path = directory / filename
-    write_json(path, messages)
-    print(f"[*] conversation saved to: [cyan]{path}[/cyan]")
-
-
-def load_conversation(path):
-    try:
-        messages = read_json(path)
-        return messages
-    except Exception as err:
-        print(f'[red]\[x] failed to load messages from: {path}')
-        return []
-
-
-def usage():
-    print("Usage")
-    print("    cls, clear       -clear terminal")
-    print("    exit, quit       -clear terminal")
-    print("    context          -switch context flag")
-    print("    model            -show current model")
-    print("    models           -list all models")
-    print("    id               -conversation ID")
-    print("    load             -load conversation")
-    print("    talk             -show talk messages")
-    print("    help             -this usage")
+def pretty_print_answer(answer):
+    """split into codeblocks and highlight"""
+    blocks = split_codeblocks(answer)
+    if (len(blocks) == 1) and blocks[0].type == 'text':
+        print(f'[*] gpt: [yellow]{answer}[/yellow]')
+    else:
+        print(f'[*] gpt:')
+        for block in blocks:
+            show_block(block)
 
 
 def clear():
@@ -195,22 +345,19 @@ def clear():
 
 
 if __name__ == "__main__":
-    script_path()
+    os.chdir(str(Path(__file__).parent))
     if os.name == 'nt':
         os.system('color')
 
-    # load config
-    # create .env file with OPENAI-API-KEY field
-    config = dotenv_values()
-    client = OpenAI(api_key=config["OPENAI-API-KEY"])
+    # **** create chat client ****
+    system_message = {
+        "role": "system",
+        "content": "rule: reply directly without long summaries and comments, in few words"
+    }
+    # client = OllamaClient(model="codellama", system_message=system_message, context=True)
+    client = GPTClient(model="gpt-4", system_message=system_message, context=True)
 
-    # talk to gpt
-    # model = "gpt-3.5-turbo"
-    model = "gpt-4"
-    context = True  # keep conversation context
-    system_message = {"role": "system", "content": "rule: reply directly without long summaries and comments, in few words"}
-    messages = [system_message]
-    conversation_id = now()
+    # **** ollama chat ****
     while True:
         try:
             question = Prompt.ask("[cyan][*] you[/cyan]")
@@ -231,84 +378,36 @@ if __name__ == "__main__":
             break
 
         elif question == "context":
-            context = not context
-            print(f"[*] keep context set to: {context}")
-            if not context:
-                save_conversation(messages)
-                messages = [system_message]
-                conversation_id = now()
+            client.switch_context()
             continue
 
         elif question == "talk":
-            print(messages)
+            print(client.messages)
             continue
 
         elif question == "id":
-            print(f'[*] conversation ID: [cyan]{conversation_id}[/cyan]')
+            print(f'[*] conversation ID: [cyan]{client.conversation_id}[/cyan]')
             continue
 
         elif question == "help":
-            usage()
-            continue
-
-        elif question == 'model':
-            print(f'[*] debug: [magenta]{model}[magenta]')
+            client.usage()
             continue
 
         elif question == 'models':
-            models = client.models.list()
-            print(models)
+            client.get_models()
+            continue
+
+        elif question == 'model':
+            client.get_model()
             continue
 
         elif question == 'load':
-            save_conversation(messages)  # save current conversation
-            conversations_directory = Path('conversations')
-            conversations_list = [conversations_directory.joinpath(item) for item in os.listdir(conversations_directory) if item.endswith('.json')]
-            conversations_match = {str(index):item for index, item in enumerate(conversations_list, start=1)}
-            conversations_str = '\n'.join([f'    {key}) [cyan]{path}[/cyan]' for (key, path) in conversations_match.items()])
-            choose_list = f'[*] choose from list:\n{conversations_str}'
-            print(choose_list)
-            try:
-                load_input = input()
-            except KeyboardInterrupt:
-                print()
-                continue
-            path_to_load = conversations_match.get(load_input, False)
-            if not path_to_load:
-                print(f'[red]\[x] wrong choice')
-                continue
-            loaded_messages = load_conversation(path_to_load)
-            if not loaded_messages:
-                print(f'[red]\[x] failed to load conversation from: {load_input}')
-            else:
-                messages = loaded_messages
-                conversation_id = path_to_load.stem
-                print(f'[green][*] conversation loaded')
+            client.load_conversation()
             continue
 
-        # prepare messages
-        user_message = {"role": "user", "content": question}
-        if context:
-            messages.append(user_message)
-        else:
-            messages = [system_message, user_message]
+        # **** ask chat ****
+        answer = client.ask(question)
+        pretty_print_answer(answer)
 
-        # ask & show answer
-        try:
-            gpt_message = ask_chat(messages)
-        except Exception as err:
-            print(f'[red]\[x] {err}[red]')
-            break
-        if context:
-            messages.append(gpt_message)
-        answer = gpt_message['content']
-        blocks = split_codeblocks(answer)
-        if (len(blocks) == 1) and blocks[0].type == 'text':
-            print(f'[*] gpt: [yellow]{answer}[/yellow]')
-        else:
-            print(f'[*] gpt:')
-            for block in blocks:
-                show_block(block)
-
-    # save last conversation
-    save_conversation(messages)
+    # **** save last conversation ****
+    client.save_conversation()
