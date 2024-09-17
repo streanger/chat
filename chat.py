@@ -10,15 +10,28 @@ except ModuleNotFoundError as err:
     # print(err)
     # print('you have to install ollama (`pip install ollama`), as well as model that you specify')
     pass
+try:
+    # to support linux terminal
+    import readline
+except:
+    pass
 from dotenv import dotenv_values
 from openai import OpenAI
 from rich import print
 from rich.columns import Columns
 from rich.panel import Panel
-from rich.prompt import Prompt
 from rich.syntax import Syntax
 
 Block = namedtuple("Block", ["content", "type"])
+
+
+class Color:
+    GREEN = "\u001b[32m"
+    YELLOW = "\u001b[33m"
+    RED = "\u001b[31m"
+    BLUE = "\u001b[34m"
+    CYAN = "\u001b[36m"
+    RESET = "\u001b[0m"
 
 
 class OllamaClient:
@@ -30,8 +43,11 @@ class OllamaClient:
         self.conversation_id = self.__now()
 
     def ask(self, content):
-        message = {"role": "user", "content": content}
-        self.messages.append(message)
+        user_message = {"role": "user", "content": content}
+        if self.context:
+            self.messages.append(user_message)
+        else:
+            self.messages = [self.system_message, user_message]
         response = ollama.chat(model=self.model, messages=self.messages)
         reply = response['message']
         if self.context:
@@ -120,8 +136,11 @@ class GPTClient:
         self.conversation_id = self.__now()
 
     def ask(self, content):
-        message = {"role": "user", "content": content}
-        self.messages.append(message)
+        user_message = {"role": "user", "content": content}
+        if self.context:
+            self.messages.append(user_message)
+        else:
+            self.messages = [self.system_message, user_message]
         response = self.client.chat.completions.create(
                 model=self.model,
                 n=1,
@@ -355,12 +374,12 @@ if __name__ == "__main__":
         "content": "rule: reply directly without long summaries and comments, in few words"
     }
     # client = OllamaClient(model="codellama", system_message=system_message, context=True)
-    client = GPTClient(model="gpt-4", system_message=system_message, context=True)
+    client = GPTClient(model="gpt-4o", system_message=system_message, context=True)
 
     # **** ollama chat ****
     while True:
         try:
-            question = Prompt.ask("[cyan][*] you[/cyan]")
+            question = input(f'{Color.CYAN}[*] you: {Color.RESET}')
         except KeyboardInterrupt:
             print()
             continue
