@@ -50,9 +50,10 @@ class OllamaClient:
             self.messages = [self.system_message, user_message]
         response = ollama.chat(model=self.model, messages=self.messages)
         reply = response['message']
-        if self.context:
-            # keep conversation
-            self.messages.append(reply)
+
+        # keep conversation anyway
+        self.messages.append(reply)
+
         answer = reply['content']
         return answer
 
@@ -151,9 +152,10 @@ class GPTClient:
         del reply['function_call']
         del reply['tool_calls']
         del reply['refusal']
-        if self.context:
-            # keep conversation
-            self.messages.append(reply)
+
+        # keep conversation anyway
+        self.messages.append(reply)
+
         answer = reply['content']
         return answer
 
