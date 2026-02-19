@@ -21,9 +21,11 @@ from rich import print
 from rich.columns import Columns
 from rich.panel import Panel
 from rich.syntax import Syntax
+from rich.markup import escape
 
 Block = namedtuple("Block", ["content", "type"])
 
+version = "0.1.1"
 
 class Color:
     GREEN = "\u001b[32m"
@@ -293,7 +295,7 @@ def split_codeblocks(text):
 def show_block(block):
     """Highlights a code block using the rich library."""
     if block.type == "text":
-        print(f'[yellow]{block.content}[/yellow]')
+        print(f'[yellow]{escape(block.content)}[/yellow]')
         return
     known_languages = {
         "bash",
@@ -350,9 +352,9 @@ def pretty_print_answer(answer):
     """split into codeblocks and highlight"""
     blocks = split_codeblocks(answer)
     if (len(blocks) == 1) and blocks[0].type == 'text':
-        print(f'[*] gpt: [yellow]{answer}[/yellow]')
+        print(f'[*] {client.model}: [yellow]{escape(answer)}[/yellow]')
     else:
-        print(f'[*] gpt:')
+        print(f'[*] {client.model}:')
         for block in blocks:
             show_block(block)
 
@@ -376,12 +378,13 @@ if __name__ == "__main__":
         "content": "rule: reply directly without long summaries and comments, in few words"
     }
     # client = OllamaClient(model="codellama", system_message=system_message, context=True)
-    client = GPTClient(model="gpt-4o", system_message=system_message, context=True)
+    client = GPTClient(model="gpt-4.1", system_message=system_message, context=True)
 
     # **** ollama chat ****
     while True:
         try:
-            question = input(f'{Color.CYAN}[*] you: {Color.RESET}')
+            context_status = f"context={Color.GREEN if client.context else Color.RED}{client.context}{Color.RESET}"
+            question = input(f'{Color.CYAN}[*] you ({Color.RESET}{context_status}{Color.CYAN}): {Color.RESET}')
         except KeyboardInterrupt:
             print()
             continue
