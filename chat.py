@@ -25,7 +25,7 @@ from rich.markup import escape
 
 Block = namedtuple("Block", ["content", "type"])
 
-version = "0.1.1"
+version = "0.1.2"
 
 class Color:
     GREEN = "\u001b[32m"
@@ -37,12 +37,17 @@ class Color:
 
 
 class OllamaClient:
-    def __init__(self, model, system_message=None, context=True):
+    def __init__(self, model, system_message=None, context=True, temperature=0.5, url=None):
+        if url is None:
+            self.client = ollama
+        else:
+            self.client = ollama.Client(host=url)
         self.model = model
         self.system_message = system_message
         self.messages = [self.system_message]
         self.context = context
         self.conversation_id = self.__now()
+        self.options = {'temperature': temperature}
 
     def ask(self, content):
         user_message = {"role": "user", "content": content}
@@ -50,10 +55,11 @@ class OllamaClient:
             self.messages.append(user_message)
         else:
             self.messages = [self.system_message, user_message]
-        response = ollama.chat(model=self.model, messages=self.messages)
+        response = self.client.chat(model=self.model, messages=self.messages, options=self.options)
         reply = response['message']
 
         # keep conversation anyway
+        reply = {'role': reply.role, 'content': reply.content}
         self.messages.append(reply)
 
         answer = reply['content']
@@ -61,11 +67,11 @@ class OllamaClient:
 
     def get_models(self):
         """show information about locally available models"""
-        print(ollama.list())
+        print(self.client.list())
 
     def get_model(self):
         """show information about currently used model"""
-        print(f'[*] current model: {self.model}')
+        print(f'[*] current model: [bright_green]{self.model}[/bright_green]')
 
     def switch_context(self):
         self.context = not self.context
@@ -84,7 +90,8 @@ class OllamaClient:
             return
         directory = Path('conversations')
         directory.mkdir(exist_ok=True)
-        filename = f'{self.conversation_id}-{self.model}.json'
+        sanitized_model_name = self.model.replace(':', '.')
+        filename = f'{self.conversation_id}-{sanitized_model_name}.json'
         path = directory / filename
         write_json(path, self.messages)
         print(f"[*] conversation saved to: [cyan]{path}[/cyan]")
@@ -94,6 +101,7 @@ class OllamaClient:
         self.save_conversation()  # save current conversation
         conversations_directory = Path('conversations')
         conversations_list = [item for item in conversations_directory.iterdir() if item.suffix == '.json']
+        conversations_list = sorted(conversations_list, reverse=True)
         conversations_match = {str(index):item for index, item in enumerate(conversations_list, start=1)}
         conversations_str = '\n'.join([f'    {key}) [cyan]{path}[/cyan]' for (key, path) in conversations_match.items()])
         choose_list = f'[*] choose from list:\n{conversations_str}'
@@ -105,11 +113,11 @@ class OllamaClient:
             return False
         path_to_load = conversations_match.get(load_input, False)
         if not path_to_load:
-            print(f'[red]\[x] wrong choice')
+            print(f'[red]\\[x] wrong choice')
             return False
         loaded_messages = read_json(path_to_load)
         if not loaded_messages:
-            print(f'[red]\[x] failed to load conversation from: {load_input}')
+            print(f'[red]\\[x] failed to load conversation from: {load_input}')
         else:
             self.messages = loaded_messages
             self.conversation_id = path_to_load.stem.split('-', maxsplit=1)[0]
@@ -129,14 +137,15 @@ class OllamaClient:
 
 
 class GPTClient:
-    def __init__(self, model, system_message=None, context=True):
-        self.model = model  # gpt-4, gpt-3.5-turbo
+    def __init__(self, model, system_message=None, context=True, temperature=0.5):
+        self.model = model
         config = dotenv_values()
         self.client = OpenAI(api_key=config["OPENAI-API-KEY"])
         self.system_message = system_message
         self.messages = [self.system_message]
         self.context = context
         self.conversation_id = self.__now()
+        self.temperature = temperature
 
     def ask(self, content):
         user_message = {"role": "user", "content": content}
@@ -147,13 +156,11 @@ class GPTClient:
         response = self.client.chat.completions.create(
                 model=self.model,
                 n=1,
-                temperature=0.5,
+                temperature=self.temperature,
                 messages=self.messages,
         )
-        reply = response.choices[0].message.model_dump()
-        del reply['function_call']
-        del reply['tool_calls']
-        del reply['refusal']
+        completion = response.choices[0].message
+        reply = {"role": completion.role, "content": completion.content}
 
         # keep conversation anyway
         self.messages.append(reply)
@@ -168,7 +175,7 @@ class GPTClient:
 
     def get_model(self):
         """show information about currently used model"""
-        print(f'[*] current model: {self.model}')
+        print(f'[*] current model: [bright_green]{self.model}[/bright_green]')
 
     def switch_context(self):
         self.context = not self.context
@@ -187,7 +194,8 @@ class GPTClient:
             return
         directory = Path('conversations')
         directory.mkdir(exist_ok=True)
-        filename = f'{self.conversation_id}-{self.model}.json'
+        sanitized_model_name = self.model.replace(':', '.')
+        filename = f'{self.conversation_id}-{sanitized_model_name}.json'
         path = directory / filename
         write_json(path, self.messages)
         print(f"[*] conversation saved to: [cyan]{path}[/cyan]")
@@ -197,6 +205,7 @@ class GPTClient:
         self.save_conversation()  # save current conversation
         conversations_directory = Path('conversations')
         conversations_list = [item for item in conversations_directory.iterdir() if item.suffix == '.json']
+        conversations_list = sorted(conversations_list, reverse=True)
         conversations_match = {str(index):item for index, item in enumerate(conversations_list, start=1)}
         conversations_str = '\n'.join([f'    {key}) [cyan]{path}[/cyan]' for (key, path) in conversations_match.items()])
         choose_list = f'[*] choose from list:\n{conversations_str}'
@@ -208,11 +217,11 @@ class GPTClient:
             return False
         path_to_load = conversations_match.get(load_input, False)
         if not path_to_load:
-            print(f'[red]\[x] wrong choice')
+            print(f'[red]\\[x] wrong choice')
             return False
         loaded_messages = read_json(path_to_load)
         if not loaded_messages:
-            print(f'[red]\[x] failed to load conversation from: {load_input}')
+            print(f'[red]\\[x] failed to load conversation from: {load_input}')
         else:
             self.messages = loaded_messages
             self.conversation_id = path_to_load.stem.split('-', maxsplit=1)[0]
@@ -245,7 +254,7 @@ def read_json(filename):
         with open(filename, encoding='utf-8') as f:
             data = json.load(f)
     except FileNotFoundError:
-        print('[x] FileNotFoundError: {}'.format(filename))
+        print('\\[x] FileNotFoundError: {}'.format(filename))
     return data
 
 
@@ -352,9 +361,9 @@ def pretty_print_answer(answer):
     """split into codeblocks and highlight"""
     blocks = split_codeblocks(answer)
     if (len(blocks) == 1) and blocks[0].type == 'text':
-        print(f'[*] {client.model}: [yellow]{escape(answer)}[/yellow]')
+        print(f'[*] [bright_green]{client.model}[/bright_green]: [yellow]{escape(answer)}[/yellow]')
     else:
-        print(f'[*] {client.model}:')
+        print(f'[*] [bright_green]{client.model}[/bright_green]:')
         for block in blocks:
             show_block(block)
 
@@ -377,7 +386,7 @@ if __name__ == "__main__":
         "role": "system",
         "content": "rule: reply directly without long summaries and comments, in few words"
     }
-    # client = OllamaClient(model="codellama", system_message=system_message, context=True)
+    # client = OllamaClient(model="llama3:8b", system_message=system_message, context=True, url='http://127.0.0.1:11434')
     client = GPTClient(model="gpt-4.1", system_message=system_message, context=True)
 
     # **** ollama chat ****

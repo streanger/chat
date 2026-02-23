@@ -24,6 +24,10 @@ make install
 
 ## changelog
 
+### 0.1.2
+
+- minor fixes & changes for `OllamaClient` and `GPTClient`
+
 ### 0.1.1
 
 - bugfix: escaped rich brackets for inline replies
